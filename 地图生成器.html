@@ -1,0 +1,1717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>扫雷地图生成器 · 模拟器验证台</title>
+<style>
+:root{
+  --cs:34px;
+  --fs:13px;
+  --bg:#f5f7fa; --panel:#fff; --line:#e4e8ef; --ink:#1f2937; --dim:#6b7280;
+  --blue:#2563eb; --green:#16a34a; --red:#dc2626;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;}
+body{font-family:"Segoe UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+  background:var(--bg);color:var(--ink);font-size:14px;overflow:hidden;}
+.app{display:flex;height:100vh;}
+
+/* ---------- 侧栏 ---------- */
+.side{width:330px;flex:none;background:var(--panel);border-right:1px solid var(--line);
+  padding:16px 16px 44px;overflow-y:auto;}
+.side h1{font-size:17px;margin:0 0 3px;}
+.side .sub{color:var(--dim);font-size:11.5px;margin-bottom:16px;letter-spacing:.5px;}
+.sec{margin-bottom:17px;}
+.sec>.lbl{font-size:11px;font-weight:700;color:var(--dim);letter-spacing:.9px;
+  margin-bottom:8px;text-transform:uppercase;}
+.row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.row label{width:76px;color:var(--dim);font-size:13px;flex:none;}
+.row .fixed{font-size:13px;font-weight:600;}
+input[type=number]{width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:7px;
+  font-size:14px;background:#fbfcfe;color:var(--ink);outline:none;}
+input[type=number]:focus{border-color:var(--blue);background:#fff;}
+.btn{display:block;width:100%;padding:10px;border:none;border-radius:8px;background:var(--blue);
+  color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:.12s;}
+.btn:hover{filter:brightness(1.08);}
+.btn.ghost{background:#eef1f6;color:var(--ink);font-weight:500;}
+.btn.ghost:hover{background:#e3e8f0;}
+
+.vd{font-size:13px;line-height:1.75;}
+.vd .ok{color:#15803d;font-weight:600;}
+.vd .bad{color:#b91c1c;font-weight:600;}
+.vd .k{color:var(--dim);}
+.vd .v{font-weight:700;}
+.box{background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:9px 11px;
+  font-size:12px;line-height:1.7;margin-top:8px;}
+.warn{background:#fff4e5;border:1px solid #ffd9a8;color:#92400e;padding:8px 10px;
+  border-radius:8px;font-size:12.5px;line-height:1.55;margin-top:8px;}
+.err{background:#fdecec;border:1px solid #f9c0c0;color:#991b1b;padding:8px 10px;
+  border-radius:8px;font-size:12.5px;margin-top:8px;}
+
+table.cal{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px;}
+table.cal th,table.cal td{padding:3px 4px;text-align:right;border-bottom:1px solid #eef1f5;}
+table.cal th{color:var(--dim);font-weight:600;text-align:right;}
+table.cal th:first-child,table.cal td:first-child{text-align:left;}
+
+/* ---------- 棋盘 ---------- */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.topbar{height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 18px;
+  border-bottom:1px solid var(--line);background:#fff;font-size:12.5px;color:var(--dim);}
+.topbar .tag{background:#eef1f6;padding:3px 10px;border-radius:20px;white-space:nowrap;}
+.topbar .tag.acc{background:#e8f0fe;color:var(--blue);font-weight:600;}
+.boards{flex:1;overflow:auto;padding:18px;display:flex;gap:26px;align-items:flex-start;justify-content:center;}
+.col{display:flex;flex-direction:column;gap:8px;}
+.cap{font-size:12.5px;font-weight:600;color:var(--dim);text-align:center;}
+.cap b{color:var(--ink);}
+.grid{display:grid;gap:2px;background:#e9edf3;padding:6px;border-radius:10px;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);}
+
+.cell{width:var(--cs);height:var(--cs);display:flex;align-items:center;justify-content:center;
+  font-weight:700;border-radius:3px;border:1px solid rgba(0,0,0,.06);
+  font-size:var(--fs);line-height:1;font-variant-numeric:tabular-nums;}
+.cell.opened{background:#eef1f5;}
+.cell.opened.blank{background:#f4f6f9;}
+.cell.num-blue{color:#2563eb;}
+.cell.num-yellow{color:#b45309;}
+.cell.num-red{color:#dc2626;}
+
+.cell.truth-e{background:#dfe4ea;}
+.cell.truth-t{background:#16a34a;color:#fff;}
+.cell.truth-b{background:#dc2626;color:#fff;}
+
+.cell.unk{background:#fde68a;color:#6b5306;}
+.cell.unk.safe{background:#16a34a;color:#fff;}
+.cell.unk.mine{background:#dc2626;color:#fff;}
+.cell.unk.empty{background:#d6dbe3;color:#8a93a0;}
+.cell.wrong{outline:3px solid #7c3aed;outline-offset:-3px;}
+.legend{font-size:12px;line-height:2;color:var(--dim);}
+.legend i{display:inline-block;width:13px;height:13px;border-radius:3px;vertical-align:-2px;
+  margin-right:7px;border:1px solid rgba(0,0,0,.1);}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <h1>地图生成器</h1>
+    <div class="sub">MAP GENERATOR &amp; VERIFIER</div>
+
+    <div class="sec">
+      <div class="lbl">生成设置</div>
+      <div class="row"><label>棋盘边长</label><input type="number" id="gSize" value="19" min="3" max="25"></div>
+      <div class="row"><label>宝藏数</label><input type="number" id="gT" value="40" min="0" max="625"></div>
+      <div class="row"><label>炸弹数</label><input type="number" id="gB" value="30" min="0" max="625"></div>
+      <div class="row"><label>展开点</label><input type="number" id="gSeed" value="8" min="1" max="60"></div>
+      <div class="row"><label>补充挖开</label><input type="number" id="gExtra" value="60" min="0" max="625"></div>
+      <button class="btn" id="btnGen">生成地图并验证</button>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">批量验证</div>
+      <button class="btn ghost" id="btnBatch">跑 200 局汇总统计</button>
+      <div id="batchOut"></div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">本轮验证结论</div>
+      <div id="verdict"></div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">图例</div>
+      <div class="legend">
+        <div><i style="background:#16a34a"></i>真实宝藏 / 模拟器「确定宝藏」</div>
+        <div><i style="background:#dc2626"></i>真实炸弹 / 模拟器「确定炸弹」</div>
+        <div><i style="background:#d6dbe3"></i>空地（真实或已确定）</div>
+        <div><i style="background:#fde68a"></i>模拟器：未知，数字为最大概率（未「确定」时不显示 0 或 100）</div>
+        <div><i style="background:#7c3aed"></i>紫框 = 模拟器判断错误（应为 0 处）</div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">说明</div>
+      <div class="box">
+        左图为上帝视角的真实地图；右图是把同一局面的<b>已挖开格子</b>按规则标注后，
+        交给模拟器的求解引擎算出的结果。<br><br>
+        引擎代码在构建时<b>自动提取自 <code>扫雷模拟器.html</code></b>，并非另写一份，
+        因此这里验证的就是模拟器本身。
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <span class="tag" id="tagA">—</span>
+      <span class="tag" id="tagB">—</span>
+      <span class="tag acc" id="tagC">等待生成</span>
+    </div>
+    <div class="boards">
+      <div class="col">
+        <div class="cap">真实地图 · <b>上帝视角</b></div>
+        <div class="grid" id="boardTruth"></div>
+      </div>
+      <div class="col">
+        <div class="cap">模拟器分析结果 · <b>仅依据已挖开格子的提示</b></div>
+        <div class="grid" id="boardAnalysis"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+"use strict";
+/*==ENGINE:BEGIN==*/
+/* ============================================================================
+   引擎区（ENGINE:BEGIN … ENGINE:END）
+   这一段是**纯计算**，只依赖数组和数字，不碰 DOM。
+   `工具/抽引擎.js` 会把所有标记之间的代码拼成 `叠加器/engine_core.js`，
+   供无头测试与桌面叠加器复用 —— 所以**改引擎只改这里**，
+   并且千万别在这几段里写 document / window 调用（上面那三行界面状态是历史遗留，
+   Node 侧用一个 document 桩兜住，不要模仿）。
+   ============================================================================ */
+/* ==================== 常量与状态 ==================== */
+const UNKNOWN = 0, BLANK = 1, BLUE = 2, YELLOW = 3, RED = 4;
+/* KT / KB —— 「已知事实」：已挖开的宝藏 / 已标注的炸弹（截图里的兔子图标与红色感叹号）。
+   规则里只有数字格提供邻域信息，所以它们不产生约束；但它们是**确定的占用**，
+   要从全局宝藏 / 炸弹配额里扣掉，并且不再进入未知格分析。 */
+const KT = 5, KB = 6;
+const V_EMPTY = 0, V_TREASURE = 1, V_BOMB = 2;
+
+let W = 10, H = 10, N = 100;
+let T = 8, B = 6;                       // 全局宝藏 / 炸弹总数
+let cellState = new Int8Array(N);
+let cellNum   = new Int8Array(N);
+let neighbors = [];
+let sol = null;
+
+const rc = i => ({ r: Math.floor(i / W), c: i % W });
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+/*==ENGINE:END==*/
+
+/*==ENGINE:BEGIN==*/
+/* ---- 对数域计算 ----
+   概率只取决于相对大小，因此全部改用 log 值（Number）运算，
+   避免 BigInt 大数乘除在分布卷积时成为性能瓶颈。 */
+let logFact = null;
+function ensureLogFact(n) {
+  if (logFact !== null && logFact.length > n) return;
+  const m = Math.max(n + 2, 1024);
+  logFact = new Float64Array(m);
+  for (let i = 1; i < m; i++) logFact[i] = logFact[i - 1] + Math.log(i);
+}
+function logC(n, k) {
+  if (n < 0 || k < 0 || k > n) return -Infinity;
+  if (k === 0 || k === n) return 0;
+  ensureLogFact(n);
+  return logFact[n] - logFact[k] - logFact[n - k];
+}
+function logAdd(a, b) {
+  if (a === -Infinity) return b;
+  if (b === -Infinity) return a;
+  const hi = a > b ? a : b, lo = a > b ? b : a;
+  return hi + Math.log1p(Math.exp(lo - hi));
+}
+/* 稀疏二维分布卷积：key = t*1000 + b，值为 log 计数 */
+function logConvolve(A, B) {
+  const R = new Map();
+  for (const [ka, la] of A) {
+    const ta = (ka / 1000) | 0, ba = ka % 1000;
+    for (const [kb, lb] of B) {
+      const tb = (kb / 1000) | 0, bb = kb % 1000;
+      const key = (ta + tb) * 1000 + (ba + bb);
+      const v = la + lb;
+      const prev = R.get(key);
+      R.set(key, prev === undefined ? v : logAdd(prev, v));
+    }
+  }
+  return R;
+}
+/* 配置总数（log 值）→ 可读文本 */
+function fmtLog(logV) {
+  if (logV === -Infinity || logV === undefined) return '0';
+  const e = logV / Math.LN10;
+  if (e < 12) return String(Math.round(Math.pow(10, e))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const ei = Math.floor(e);
+  return `${Math.pow(10, e - ei).toFixed(2)} × 10^${ei}`;
+}
+
+/* ==================== 棋盘构建 ==================== */
+function buildNeighbors() {
+  neighbors = new Array(N);
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const i = r * W + c, nb = [];
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < H && nc >= 0 && nc < W) nb.push(nr * W + nc);
+        }
+      }
+      neighbors[i] = nb;
+    }
+  }
+}
+/*==ENGINE:END==*/
+
+/*==ENGINE:BEGIN==*/
+/* ==================== 求解引擎 ==================== */
+
+/* 单分量：传播 + 枚举 */
+function analyzeComponent(cells, cons, deadline, sampleDeadline) {
+  const fixed = new Map();
+
+  /* --- 1. 约束传播 --- */
+  let changed = true, guard = 0;
+  while (changed && guard++ < 4000) {
+    changed = false;
+    for (const c of cons) {
+      let t = 0, b = 0, u = 0;
+      for (const cell of c.cells) {
+        const v = fixed.get(cell);
+        if (v === 1) t++; else if (v === 2) b++; else if (v === undefined) u++;
+      }
+      if (c.type === 'T') {                      // 蓝：只有宝藏，共 need 个
+        if (b > 0 || t > c.need) return { error: '提示互相矛盾：蓝色数字的邻域内被确定为炸弹。' };
+        if (t + u < c.need) return { error: '提示互相矛盾：蓝色数字的邻域内已经放不下这么多宝藏。' };
+        if (u > 0 && t === c.need) {
+          for (const cell of c.cells) if (fixed.get(cell) === undefined) { fixed.set(cell, V_EMPTY); changed = true; }
+        } else if (u > 0 && t + u === c.need) {
+          for (const cell of c.cells) if (fixed.get(cell) === undefined) { fixed.set(cell, V_TREASURE); changed = true; }
+        }
+      } else if (c.type === 'B') {               // 红：只有炸弹，共 need 个
+        if (t > 0 || b > c.need) return { error: '提示互相矛盾：红色数字的邻域内被确定为宝藏。' };
+        if (b + u < c.need) return { error: '提示互相矛盾：红色数字的邻域内已经放不下这么多炸弹。' };
+        if (u > 0 && b === c.need) {
+          for (const cell of c.cells) if (fixed.get(cell) === undefined) { fixed.set(cell, V_EMPTY); changed = true; }
+        } else if (u > 0 && b + u === c.need) {
+          for (const cell of c.cells) if (fixed.get(cell) === undefined) { fixed.set(cell, V_BOMB); changed = true; }
+        }
+      } else {                                   // 黄：宝藏 + 炸弹 = need，且都 ≥ 1
+        const s = t + b;
+        if (s > c.need) return { error: '提示互相矛盾：混合提示的邻域总数超限。' };
+        if (s + u < c.need) return { error: '提示互相矛盾：混合提示的邻域内已经放不下这么多格子。' };
+        if (u > 0 && s === c.need) {
+          for (const cell of c.cells) if (fixed.get(cell) === undefined) { fixed.set(cell, V_EMPTY); changed = true; }
+        }
+        // "宝藏与炸弹同时存在"说的是周围 8 格，所以已知事实（兔子 / 感叹号）也要算进来：
+        // 否则「黄3 旁边一只兔子」在扣减后只剩 1 个名额时会被误判成矛盾。
+        if (u === 0 && (t + c.kt === 0 || b + c.kb === 0)) {
+          return { error: '提示互相矛盾：混合提示要求邻域内宝藏与炸弹同时存在。' };
+        }
+      }
+    }
+
+    // ---- 子集推理：约束 A 的未确定邻域 ⊆ B 时，差集 B\A 可推出新约束 ----
+    // 扫雷求解器的核心技巧。邻域至多 8 格，用集合比较即可。
+    // 只比较「邻域有交叠」的约束对（经格子倒排筛选），并受时间盒保护。
+    if (cons.length > 1 && cons.length <= 400 && performance.now() < deadline) {
+      // 关键：need 是「邻域内应有的总数」，而 open 只含未确定的格子，
+      // 两者口径不同，必须改用「剩余需求」rem 才能做差值推导。
+      for (let ci = 0; ci < cons.length; ci++) {
+        const c = cons[ci];
+        const open = [];
+        let doneT = 0, doneB = 0;
+        for (const x of c.cells) {
+          const v = fixed.get(x);
+          if (v === undefined) open.push(x);
+          else if (v === 1) doneT++;
+          else if (v === 2) doneB++;
+        }
+        c.open = open;
+        c.openSet = new Set(open);
+        c.rem = c.type === 'T' ? c.need - doneT
+              : c.type === 'B' ? c.need - doneB
+              : c.need - doneT - doneB;
+        if (c.rem < 0 || c.rem > open.length) {
+          return { error: '提示互相矛盾：某条提示的邻域内数量超出可容纳范围。' };
+        }
+      }
+      const cellCons = new Map();
+      for (let ci = 0; ci < cons.length; ci++) {
+        for (const cell of cons[ci].open) {
+          let arr = cellCons.get(cell);
+          if (arr === undefined) { arr = []; cellCons.set(cell, arr); }
+          arr.push(ci);
+        }
+      }
+      // 先收集推导，再统一应用，避免中途改动 fixed 使 open/rem 失效
+      const toFix = new Map();
+      let conflict = false;
+      let ops = 0, abort = false;
+      for (let i = 0; i < cons.length && !abort; i++) {
+        const A = cons[i];
+        if (A.open.length === 0) continue;
+        let cand = null;
+        for (let x = 0; x < A.open.length; x++) {
+          const arr = cellCons.get(A.open[x]);
+          if (arr === undefined) continue;
+          if (cand === null) cand = new Set(arr);
+          else for (const ci of arr) cand.add(ci);
+        }
+        if (cand === null) continue;
+        for (const j of cand) {
+          if (j === i) continue;
+          if ((++ops & 255) === 0 && performance.now() > deadline) { abort = true; break; }
+          const B = cons[j];
+          if (A.type !== B.type) continue;                 // 仅同类型，保证推导安全
+          if (A.open.length > B.open.length) continue;
+          let sub = true;
+          for (let x = 0; x < A.open.length; x++) {
+            if (!B.openSet.has(A.open[x])) { sub = false; break; }
+          }
+          if (!sub) continue;
+          const needDiff = B.rem - A.rem;
+          const dCount = B.open.length - A.open.length;
+          /* 这两个越界条件在**自洽盘面上数学上不可能成立**，所以这里的 continue 是
+             纯防御，不是"漏检矛盾"（曾被人当成 bug 报过，别再改）：
+               rem = |真实解集 ∩ open|（蓝/红/黄三种类型同构），而 A.open ⊆ B.open
+               ⟹ rem_A ≤ rem_B，即 needDiff ≥ 0；
+               同理 needDiff ≤ |B.open \ A.open| = dCount。
+             只有用户标注本身自相矛盾时才可能触及，那时枚举阶段会兜底报
+             "没有任何自洽的配置"（错误信息不如这里具体，但结论一样）。
+             真值盘面上实测触发 0 次。 */
+          if (needDiff < 0 || needDiff > dCount) continue;
+          if (needDiff === 0) {                            // 差集全部为空
+            for (let x = 0; x < B.open.length; x++) {
+              const cell = B.open[x];
+              if (!A.openSet.has(cell)) toFix.set(cell, V_EMPTY);
+            }
+          } else if (needDiff === dCount && A.type !== 'M') {  // 差集全是宝藏 / 全是炸弹
+            const vv = A.type === 'T' ? V_TREASURE : V_BOMB;
+            for (let x = 0; x < B.open.length; x++) {
+              const cell = B.open[x];
+              if (!A.openSet.has(cell)) toFix.set(cell, vv);
+            }
+          }
+        }
+      }
+      for (const [cell, v] of toFix) {
+        const cur = fixed.get(cell);
+        if (cur === undefined) { fixed.set(cell, v); changed = true; }
+        else if (cur !== v) { conflict = true; }
+      }
+      if (conflict) return { error: '提示互相矛盾：不同提示给出了不一致的格子状态。' };
+    }
+  }
+
+  /* --- 2. 未确定格子 --- */
+  const undet = cells.filter(c => !fixed.has(c));
+  const n = undet.length;
+  let baseT = 0, baseB = 0;
+  for (const v of fixed.values()) { if (v === 1) baseT++; else if (v === 2) baseB++; }
+
+  // 局部计数一律用 Number：单分量解数被 SOL_LIMIT 封顶，绝不会越界，
+  // 返回前再统一转 BigInt，避免枚举热路径上反复做 BigInt 运算。
+  const dist = new Map();
+  const statT = [], statB = [], statE = [];
+  const toLog = m => { const r = new Map(); for (const [k, v] of m) r.set(k, Math.log(v)); return r; };
+
+  if (n === 0) {
+    dist.set(baseT * 1000 + baseB, 1);
+    return { cells, fixed, undet, dist: toLog(dist), statT, statB, statE, approx: false };
+  }
+
+  // 枚举下标映射：用 Int32Array 直查，避免热路径上的 Map 查找
+  const idxArr = new Int32Array(N).fill(-1);
+  undet.forEach((c, k) => { idxArr[c] = k; });
+
+  // 约束的格子预先翻译成枚举下标
+  const consIdx = cons.map(c => {
+    const a = [];
+    for (const cell of c.cells) { const k = idxArr[cell]; if (k >= 0) a.push(k); }
+    return a;
+  });
+
+  const consOf = Array.from({ length: n }, () => []);
+  cons.forEach((c, ci) => {
+    for (const k of consIdx[ci]) consOf[k].push(ci);
+  });
+
+  const consBase = cons.map(c => {
+    let t = 0, b = 0;
+    for (const cell of c.cells) {
+      const v = fixed.get(cell);
+      if (v === 1) t++; else if (v === 2) b++;
+    }
+    return { t, b };
+  });
+
+  for (let k = 0; k < n; k++) { statT.push(new Map()); statB.push(new Map()); statE.push(new Map()); }
+
+  // 变量排序：参与约束多的优先（强剪枝）
+  const order = Array.from({ length: n }, (_, k) => k)
+    .sort((a, b) => consOf[b].length - consOf[a].length);
+
+  const val = new Int8Array(n).fill(-1);
+
+  function okCons(ci) {
+    const c = cons[ci];
+    const list = consIdx[ci];
+    let t = consBase[ci].t, b = consBase[ci].b, u = 0;
+    for (let x = 0; x < list.length; x++) {
+      const v = val[list[x]];
+      if (v === 1) t++; else if (v === 2) b++; else if (v === -1) u++;
+    }
+    if (c.type === 'T') {
+      if (b > 0 || t > c.need) return false;
+      if (t + u < c.need) return false;
+    } else if (c.type === 'B') {
+      if (t > 0 || b > c.need) return false;
+      if (b + u < c.need) return false;
+    } else {
+      const s = t + b;
+      if (s > c.need) return false;
+      if (s + u < c.need) return false;
+      // "宝藏与炸弹同时存在"说的是周围 8 格 —— 已知事实（兔子 / 感叹号）也要算进来。
+      // 典型例子：「黄2 旁边一个已标注炸弹，只剩 1 个未知格」是**有解**的
+      // （那个未知格就是宝藏），但只看 cells 会判成"既没有宝藏也没有炸弹"而无解。
+      const kt = c.kt || 0, kb = c.kb || 0;
+      if (u === 0) { if (t + kt === 0 || b + kb === 0) return false; }
+      else {
+        const rem = c.need - s;
+        if (t + kt === 0 && rem < 1) return false;
+        if (b + kb === 0 && rem < 1) return false;
+      }
+    }
+    return true;
+  }
+
+  function record() {
+    let t = baseT, b = baseB;
+    for (let k = 0; k < n; k++) { const v = val[k]; if (v === 1) t++; else if (v === 2) b++; }
+    const key = t * 1000 + b;
+    dist.set(key, (dist.get(key) || 0) + 1);
+    for (let k = 0; k < n; k++) {
+      const v = val[k];
+      const m = v === 1 ? statT[k] : v === 2 ? statB[k] : statE[k];
+      m.set(key, (m.get(key) || 0) + 1);
+    }
+  }
+
+  const NODE_LIMIT = 3_000_000, SOL_LIMIT = 200_000;
+  // 单分量枚举的试探窗口：约束强则很快枚举完（精确），约束弱则及早转抽样。
+  // 保证每个分量都有最小窗口，避免先处理的大分量耗尽预算后，
+  // 后续本可秒解的小分量也被迫走抽样。
+  const enumDeadline = Math.max(
+    Math.min(deadline, performance.now() + 400),
+    performance.now() + (n <= 24 ? 60 : 8)
+  );
+  let nodes = 0, sols = 0, overflow = false;
+
+  function rec(pos) {
+    if (overflow) return;
+    if (++nodes > NODE_LIMIT) { overflow = true; return; }
+    if ((nodes & 2047) === 0 && performance.now() > enumDeadline) { overflow = true; return; }
+    if (pos === n) {
+      if (++sols > SOL_LIMIT) { overflow = true; return; }
+      record();
+      return;
+    }
+    const k = order[pos];
+    for (let v = 0; v <= 2; v++) {
+      val[k] = v;
+      let ok = true;
+      const list = consOf[k];
+      for (let x = 0; x < list.length; x++) { if (!okCons(list[x])) { ok = false; break; } }
+      if (ok) rec(pos + 1);
+      if (overflow) { val[k] = -1; return; }
+    }
+    val[k] = -1;
+  }
+  if (n <= 200) rec(0); else overflow = true;   // 变量过多时枚举必然爆炸，直接跳到抽样
+
+  /* --- 3. 超限则改用随机抽样估算 --- */
+  let approx = false;
+  let got = 0, tries = 0;
+  if (overflow) {
+    approx = true;
+    dist.clear();
+    for (let k = 0; k < n; k++) { statT[k].clear(); statB[k].clear(); statE[k].clear(); }
+    const SAMPLES = 6000, NODE_BUDGET = 300000;
+    // 采样同样受全局时间盒约束，单分量最多再花 800ms
+    const hardDeadline = Math.max(
+      Math.min(sampleDeadline, performance.now() + 800),
+      performance.now() + 25
+    );
+
+    // 采样采用「随机决策 + 立即传播」：每步赋值后先跑一遍约束传播，
+    // 把必然确定的格子直接定下来，搜索深度被压到极小，
+    // 避免纯随机 DFS 在强约束下几乎必然撞死。
+    const modLog = [];
+    const undoTo = len => { while (modLog.length > len) val[modLog.pop()] = -1; };
+
+    // 注意：need 是「整个邻域内应有的总数」，其中一部分可能已经被约束传播定死了
+    // （consBase）。因此这里必须用 consBase 作为基数，否则剪枝口径就错了：
+    // 既会漏掉大量可推导的信息，也会把非法赋值当成解收进来。
+    // 下面的检查与精确枚举的 okCons 等价 —— **但 kt / kb（已知事实）必须一起算**，
+    // 这一点曾经漏过（consBase 只统计 c.cells 里被定死的格子，不含已知事实）。
+    function propAssign() {
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (let ci = 0; ci < cons.length; ci++) {
+          const c = cons[ci], list = consIdx[ci];
+          let t = consBase[ci].t, b = consBase[ci].b, u = 0;
+          for (let x = 0; x < list.length; x++) {
+            const v = val[list[x]];
+            if (v === 1) t++; else if (v === 2) b++; else if (v === -1) u++;
+          }
+          if (c.type === 'T') {
+            if (b > 0 || t > c.need) return false;
+            if (t + u < c.need) return false;
+            if (u > 0 && t === c.need) {
+              for (let x = 0; x < list.length; x++) { const kk = list[x]; if (val[kk] === -1) { val[kk] = 0; modLog.push(kk); changed = true; } }
+            } else if (u > 0 && t + u === c.need) {
+              for (let x = 0; x < list.length; x++) { const kk = list[x]; if (val[kk] === -1) { val[kk] = 1; modLog.push(kk); changed = true; } }
+            }
+          } else if (c.type === 'B') {
+            if (t > 0 || b > c.need) return false;
+            if (b + u < c.need) return false;
+            if (u > 0 && b === c.need) {
+              for (let x = 0; x < list.length; x++) { const kk = list[x]; if (val[kk] === -1) { val[kk] = 0; modLog.push(kk); changed = true; } }
+            } else if (u > 0 && b + u === c.need) {
+              for (let x = 0; x < list.length; x++) { const kk = list[x]; if (val[kk] === -1) { val[kk] = 2; modLog.push(kk); changed = true; } }
+            }
+          } else {
+            const s = t + b;
+            if (s > c.need) return false;
+            if (s + u < c.need) return false;
+            const rem = c.need - s;                 // 还需要放几个「非空」格子
+            /* 「宝藏与炸弹同时存在」说的是**整个邻域**，所以已知事实（兔子 / 感叹号）
+               也要算进来 —— 与 okCons 口径一致。漏掉 kt/kb 会**过度剪枝**：
+               「黄N 旁边一只已标注的兔子」这种本来合法的配置会被整趟丢掉，
+               抽样分布被压偏。真机实测（探针，第三张真值盘面）触发 2404 次。 */
+            const kt = c.kt || 0, kb = c.kb || 0;
+            if (t + kt === 0 && rem < 1) return false;   // 还得有宝藏，但没位置了
+            if (b + kb === 0 && rem < 1) return false;   // 还得有炸弹，但没位置了
+            if (u > 0 && rem === 0) {
+              for (let x = 0; x < list.length; x++) { const kk = list[x]; if (val[kk] === -1) { val[kk] = 0; modLog.push(kk); changed = true; } }
+            }
+          }
+        }
+      }
+      return true;
+    }
+
+    // 「不回头的随机下潜」：随机挑格子、随机赋值、立刻传播；一旦传播发现矛盾就整趟丢弃重来。
+    // 大而松的分量里，随机序 DFS 可能很久才摸到第一个叶子（甚至一直超时），
+    // 而每趟下潜只要 O(深度)，能立刻攒出样本——总比退回「按平均密度猜」强得多。
+    let dives = 0, diveFails = 0;
+    function diveOnce() {
+      dives++;
+      val.fill(-1);
+      modLog.length = 0;
+      for (;;) {
+        if (!propAssign()) { undoTo(0); diveFails++; return false; }
+        // 蓄水池抽样，随机挑一个还没定的格子
+        let k = -1, cnt = 0;
+        for (let x = 0; x < n; x++) if (val[x] === -1) { cnt++; if ((Math.random() * cnt | 0) === 0) k = x; }
+        if (k === -1) { got++; record(); undoTo(0); return true; }
+        val[k] = (Math.random() * 3) | 0;
+        modLog.push(k);            // 一并登记，undoTo(0) 时全部回滚
+      }
+    }
+    const diveUntil = Math.min(hardDeadline, performance.now() + 250);
+    while (got < SAMPLES && dives < 20000 && diveFails < 400 && performance.now() < diveUntil) diveOnce();
+
+    // 随机序枚举：DFS 每一层的取值顺序都打乱，沿途把解收下。
+    // 关键在「一趟只收一小批就重开」：
+    //   一趟 DFS 会先把第一个分支的整棵子树走完，那批解的 (t,b) 会挤在很窄的一段里，
+    //   采样再多也补不回来（真实解可能整段都落空）。
+    //   每趟只取 PER_PASS 个就换一套随机序重来，才能把 (t,b) 的覆盖面铺开。
+    const PER_PASS = 48;
+    let nodes = 0, stop = false, passStop = false, passGot = 0;
+    function randCollect() {
+      if (stop || passStop) return;
+      if ((++nodes & 511) === 0) {
+        if (performance.now() > hardDeadline || got >= SAMPLES) { stop = true; return; }
+      }
+
+      const mark = modLog.length;
+      if (!propAssign()) { undoTo(mark); return; }
+
+      // 选参与约束最多的未确定格子（MRV 启发式）
+      let k = -1, best = -1;
+      for (let x = 0; x < n; x++) {
+        if (val[x] !== -1) continue;
+        const d = consOf[x].length;
+        if (d > best) { best = d; k = x; }
+      }
+      if (k === -1) {
+        got++; passGot++; record();
+        if (passGot >= PER_PASS) passStop = true;
+        undoTo(mark); return;
+      }
+
+      const vs = [0, 1, 2];
+      for (let x = 2; x > 0; x--) { const y = (Math.random() * (x + 1)) | 0; const t = vs[x]; vs[x] = vs[y]; vs[y] = t; }
+      for (let i = 0; i < 3; i++) {
+        val[k] = vs[i];
+        randCollect();
+        val[k] = -1;
+        if (stop || passStop) break;
+      }
+      undoTo(mark);
+    }
+
+    let deadPasses = 0;
+    while (!stop && got < SAMPLES && nodes < NODE_BUDGET) {
+      tries++;
+      val.fill(-1);
+      modLog.length = 0;
+      passStop = false;
+      passGot = 0;
+      randCollect();
+      if (passGot === 0 && ++deadPasses > 200) break;   // 连续多趟一无所获，别再耗时间
+    }
+    if (got === 0) {
+      // 采样完全失败。注意：真实解是存在的，只是该分量过大无法枚举/抽样，
+      // 这不是「矛盾」，交由上层用剩余区域平均密度兜底。
+      return { cells, fixed, undet, dist: null, statT, statB, statE, approx: true, degraded: true, got, tries };
+    }  }
+
+  return {
+    cells, fixed, undet,
+    dist: toLog(dist),
+    statT: statT.map(toLog), statB: statB.map(toLog), statE: statE.map(toLog),
+    approx, got, tries
+  };
+}
+
+function computeSolutionCore() {
+  const t0 = performance.now();
+
+  // 抽样/估算时，某些取值会因为「样本里没出现」而被算成 0——那只是没采到，不是不可能。
+  // 给这类取值抬一个下限，但抬起来的概率会凭空增加总量，所以按棋盘格子数摊薄，
+  // 把 ΣP 的总偏差控制在 FLOOR_BUDGET 以内（而不是每格固定 1e-3 那样随棋盘放大）。
+  const FLOOR_BUDGET = 0.02;
+  const floorEps = got => Math.min(1 / (2 * Math.max(1, got)), FLOOR_BUDGET / N);
+  sol = {
+    ok: true, error: null, approx: false, logTotal: -Infinity, ms: 0,
+    probs: new Float64Array(N * 3), certain: new Uint8Array(N),
+    estimated: new Uint8Array(N), degradedCount: 0
+  };
+
+  /* 未知格 */
+  const unk = [];
+  /* 已知事实（KT/KB）先扣掉：它们必然各占掉一个宝藏 / 炸弹名额，且已不是未知格。
+     它们不产生邻域约束——规则里只有数字格给信息，所以下面的约束构建会跳过它们。 */
+  let knownT = 0, knownB = 0;
+  for (let i = 0; i < N; i++) {
+    if (cellState[i] === UNKNOWN) unk.push(i);
+    else if (cellState[i] === KT) knownT++;
+    else if (cellState[i] === KB) knownB++;
+  }
+  const F = unk.length;
+  const Trest = T - knownT, Brest = B - knownB;
+
+  if (Trest < 0 || Brest < 0) {
+    sol.ok = false;
+    sol.error = `已标记 ${knownT} 个宝藏 / ${knownB} 个炸弹，超过了设定的总数（宝藏 ${T} · 炸弹 ${B}）。`;
+    sol.ms = performance.now() - t0; return;
+  }
+  if (Trest + Brest > F) {
+    sol.ok = false;
+    sol.error = `扣掉已标记的之后还剩 ${Trest} 宝藏 + ${Brest} 炸弹，但未挖开格子只剩 ${F} 个，放不下。`;
+    sol.ms = performance.now() - t0; return;
+  }
+
+  /* 构建约束 */
+  const cons = [];
+  for (let i = 0; i < N; i++) {
+    const st = cellState[i];
+    if (st !== BLUE && st !== YELLOW && st !== RED) continue;
+    const cells = [];
+    /* 已挖开的宝藏 / 已标注的炸弹也占着邻域名额。
+       提示数说的是"周围 8 格"，而那 8 格里可能有已经确定的事实（截图里的兔子 / 红色感叹号）：
+       它们不是未知格，进不了 cells，但**必须从提示数里扣掉** ——
+       否则「蓝1 旁边正好一只兔子」会被判成"周围未挖开格只有 0 个，放不下 1 个"而无解。
+       谁扣谁：蓝只数宝藏（兔子扣、炸弹不扣），红只数炸弹（炸弹扣、兔子不扣），黄两者都数。 */
+    let known = 0, kt = 0, kb = 0;
+    for (const j of neighbors[i]) {
+      const sj = cellState[j];
+      if (sj === UNKNOWN) cells.push(j);
+      else if (sj === KT) { kt++; if (st !== RED) known++; }
+      else if (sj === KB) { kb++; if (st !== BLUE) known++; }
+    }
+    const raw = cellNum[i];
+    const need = raw - known;
+    const type = st === BLUE ? 'T' : (st === RED ? 'B' : 'M');
+    const p = rc(i);
+
+    if (type === 'M' && raw < 2) {
+      sol.ok = false; sol.error = `(${p.r + 1},${p.c + 1}) 黄 ${raw}：混合提示的总数至少为 2。`;
+      sol.ms = performance.now() - t0; return;
+    }
+    if (need < 0) {
+      sol.ok = false;
+      const cn = st === BLUE ? '蓝' : st === RED ? '红' : '黄';
+      sol.error = `(${p.r + 1},${p.c + 1}) 标注为 ${cn}${raw}，但周围已经有 ${known} 个已知事实，超出了提示数。`;
+      sol.ms = performance.now() - t0; return;
+    }
+    if (cells.length < need) {
+      sol.ok = false;
+      const cn = st === BLUE ? '蓝' : st === RED ? '红' : '黄';
+      sol.error = `(${p.r + 1},${p.c + 1}) 标注为 ${cn}${raw}（扣掉已知事实后还需 ${need} 个），但周围未挖开格只有 ${cells.length} 个。`;
+      sol.ms = performance.now() - t0; return;
+    }
+    if (cells.length === 0 && need !== 0) {
+      sol.ok = false; sol.error = '存在无法满足的提示（邻域内没有未挖开格子）。';
+      sol.ms = performance.now() - t0; return;
+    }
+    cons.push({ type, need, cells, kt, kb });
+  }
+
+  /* 连通分量 */
+  const parent = new Int32Array(N);
+  for (let i = 0; i < N; i++) parent[i] = i;
+  const find = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  const union = (a, b) => { a = find(a); b = find(b); if (a !== b) parent[b] = a; };
+  for (const c of cons) for (let k = 1; k < c.cells.length; k++) union(c.cells[0], c.cells[k]);
+
+  const inCon = new Uint8Array(N);
+  for (const c of cons) for (const i of c.cells) inCon[i] = 1;
+
+  const groups = new Map();
+  for (const i of unk) {
+    if (!inCon[i]) continue;
+    const r = find(i);
+    if (!groups.has(r)) groups.set(r, []);
+    groups.get(r).push(i);
+  }
+
+  const compConsMap = new Map();
+  for (const c of cons) {
+    if (!c.cells.length) continue;
+    const r = find(c.cells[0]);
+    if (!compConsMap.has(r)) compConsMap.set(r, []);
+    compConsMap.get(r).push(c);
+  }
+
+  let inComp = 0;
+  for (const arr of groups.values()) inComp += arr.length;
+  const FfreeBase = F - inComp;
+
+  /* 求解各分量（全局时间盒：枚举 1.2s，抽样总截止 2.6s，保证 UI 不冻结） */
+  const deadline = t0 + 2000;
+  const sampleDeadline = t0 + 3000;
+  const comps = [];
+  const degraded = [];
+  let minGot = Infinity;      // 抽样分量的最少样本数，用作概率下限的分辨率
+  for (const [root, cells] of groups) {
+    const r = analyzeComponent(cells, compConsMap.get(root) || [], deadline, sampleDeadline);
+    if (r.error) { sol.ok = false; sol.error = r.error; sol.ms = performance.now() - t0; return; }
+    if (r.approx) sol.approx = true;
+    if (r.approx && r.got > 0) minGot = Math.min(minGot, r.got);
+    if (r.degraded) degraded.push(r); else comps.push(r);
+  }
+
+  // 降级分量虽无法精确分析，但其格子仍要参与全局数量分配，因此并入「自由格」口径；
+  // 其中已被传播确定的格子则要从全局总量中扣除，否则全局约束会无处落地而误报矛盾。
+  let degN = 0, degFixT = 0, degFixB = 0;
+  for (const r of degraded) {
+    degN += r.undet.length;
+    for (const v of r.fixed.values()) { if (v === 1) degFixT++; else if (v === 2) degFixB++; }
+  }
+  const Ffree = FfreeBase + degN;
+  const Tg = Trest - degFixT, Bg = Brest - degFixB;
+
+  /* 全局合并 */
+  const m = comps.length;
+  const pre = new Array(m + 1), suf = new Array(m + 1);
+  pre[0] = new Map([[0, 0]]);                       // log(1) = 0
+  for (let i = 0; i < m; i++) pre[i + 1] = logConvolve(pre[i], comps[i].dist);
+  suf[m] = new Map([[0, 0]]);
+  for (let i = m - 1; i >= 0; i--) suf[i] = logConvolve(comps[i].dist, suf[i + 1]);
+  const A = pre[m];
+
+  const logWaysFree = (t, b) => {
+    if (t < 0 || b < 0 || t + b > Ffree) return -Infinity;
+    return logC(Ffree, t) + logC(Ffree - t, b);
+  };
+
+  let logZ = -Infinity;
+  for (const [key, la] of A) {
+    const t = (key / 1000) | 0, b = key % 1000;
+    const lw = logWaysFree(Tg - t, Bg - b);
+    if (lw === -Infinity) continue;
+    logZ = logAdd(logZ, la + lw);
+  }
+
+  // 还剩多少宝藏 / 炸弹没被"已知事实"占掉。pickNext 要用（死区过滤的前提是 Trest ≥ 1）。
+  sol.Trest = Trest; sol.Brest = Brest;
+
+  // 诊断用：记录分量规模、抽样样本数与全局 (t,b) 支撑，便于外部脚本核对
+  sol.__dbg = {
+    F, FfreeBase, degN, degFixT, degFixB, Tg, Bg, Ffree, knownT, knownB, Trest, Brest,
+    A: [...A.keys()].sort((a, b) => a - b),
+    comps: comps.map(c => ({ n: c.undet.length, fixed: c.fixed.size, keys: c.dist.size, approx: c.approx, got: c.got, tries: c.tries })),
+    deg: degraded.map(c => ({ n: c.undet.length, fixed: c.fixed.size, approx: c.approx, got: c.got, tries: c.tries })),
+  };
+
+  if (logZ === -Infinity) {
+    if (!sol.approx && degraded.length === 0) {
+      // 所有分量都精确求解过，这时「无解」才真的是标注本身自相矛盾
+      sol.ok = false;
+      sol.error = '当前标注与全局数量矛盾：没有任何自洽的配置。';
+      sol.ms = performance.now() - t0; return;
+    }
+    // 有抽样/降级分量时，「没找到自洽配置」可能只是近似没覆盖到真实解。
+    // 此时不能断言标注矛盾——退回「按剩余区域平均密度估算」，并全部标为估算值。
+    let fixT = 0, fixB = 0;
+    for (const r of comps.concat(degraded)) {
+      for (const [cell, v] of r.fixed) {
+        sol.certain[cell] = v === 1 ? 1 : v === 2 ? 2 : 3;
+        sol.probs[cell * 3 + (v === 1 ? 0 : v === 2 ? 1 : 2)] = 1;
+        if (v === 1) fixT++; else if (v === 2) fixB++;
+      }
+    }
+    const restCells = [];
+    for (const r of comps.concat(degraded)) for (const cell of r.undet) restCells.push(cell);
+    for (const i of unk) if (!inCon[i]) restCells.push(i);
+    const n2 = restCells.length;
+    let pT = n2 > 0 ? Math.max(0, T - fixT) / n2 : 0;
+    let pB = n2 > 0 ? Math.max(0, B - fixB) / n2 : 0;
+    let pE = Math.max(0, 1 - pT - pB);
+    if (n2 > 0) {
+      const eps = floorEps(n2);
+      pT = Math.max(pT, eps); pB = Math.max(pB, eps); pE = Math.max(pE, eps);
+      const z = pT + pB + pE; pT /= z; pB /= z; pE /= z;
+    }
+    for (const cell of restCells) {
+      sol.probs[cell * 3] = pT; sol.probs[cell * 3 + 1] = pB; sol.probs[cell * 3 + 2] = pE;
+      sol.estimated[cell] = 1;
+    }
+    sol.approx = true;
+    sol.fallback = true;
+    sol.degradedCount = n2;
+    sol.ms = performance.now() - t0; return;
+  }
+  sol.logTotal = logZ;
+
+  /* 传播确定的格子（含降级分量中已被传播确定的部分） */
+  for (const r of comps) {
+    for (const [cell, v] of r.fixed) {
+      sol.certain[cell] = v === 1 ? 1 : v === 2 ? 2 : 3;
+      sol.probs[cell * 3 + (v === 1 ? 0 : v === 2 ? 1 : 2)] = 1;
+    }
+  }
+  for (const r of degraded) {
+    for (const [cell, v] of r.fixed) {
+      sol.certain[cell] = v === 1 ? 1 : v === 2 ? 2 : 3;
+      sol.probs[cell * 3 + (v === 1 ? 0 : v === 2 ? 1 : 2)] = 1;
+    }
+  }
+
+  /* 未确定格子的精确边际 */
+  for (let i = 0; i < m; i++) {
+    const r = comps[i];
+    const others = logConvolve(pre[i], suf[i + 1]);
+
+    // waysOther 只取决于 (u,v)，而同一分量的所有格子共享同一组 (t,b) 取值，
+    // 因此按 (u,v) 缓存：把 O(格子数 × 分布²) 降为 O(分布² + 格子数 × 分布)
+    const wCache = new Map();
+    const waysOther = (u, v) => {
+      const ck = u * 1000 + v;
+      const hit = wCache.get(ck);
+      if (hit !== undefined) return hit;
+      let lw = -Infinity;
+      for (const [ok, lo] of others) {
+        const ot = (ok / 1000) | 0, ob = ok % 1000;
+        const lf = logWaysFree(u - ot, v - ob);
+        if (lf === -Infinity) continue;
+        lw = logAdd(lw, lo + lf);
+      }
+      wCache.set(ck, lw);
+      return lw;
+    };
+    const weightSum = statMap => {
+      let lw = -Infinity;
+      for (const [key, lc] of statMap) {
+        const t = (key / 1000) | 0, b = key % 1000;
+        const u = Tg - t, v = Bg - b;
+        if (u < 0 || v < 0) continue;
+        const w = waysOther(u, v);
+        if (w === -Infinity) continue;
+        lw = logAdd(lw, lc + w);
+      }
+      return lw;
+    };
+
+    // 抽样近似时，样本里没出现过的取值会算出 0——那只是「没采到」，不是「不可能」。
+    // 以采样分辨率 1/(2·got) 做下限，并封顶在 1e-3，避免下限本身把 ΣP 的总量顶偏。
+    const eps = r.approx ? floorEps(r.got) : 0;
+    for (let k = 0; k < r.undet.length; k++) {
+      const cell = r.undet[k];
+      const lT = weightSum(r.statT[k]);
+      const lB = weightSum(r.statB[k]);
+      const lE = weightSum(r.statE[k]);
+      const lTot = logAdd(logAdd(lT, lB), lE);
+      if (lTot === -Infinity) continue;
+      let pT = Math.exp(lT - lTot), pB = Math.exp(lB - lTot), pE = Math.exp(lE - lTot);
+      if (eps > 0) {
+        pT = Math.max(pT, eps); pB = Math.max(pB, eps); pE = Math.max(pE, eps);
+        const z = pT + pB + pE; pT /= z; pB /= z; pE /= z;
+        sol.estimated[cell] = 1;
+      }
+      sol.probs[cell * 3]     = pT;
+      sol.probs[cell * 3 + 1] = pB;
+      sol.probs[cell * 3 + 2] = pE;
+      // 「确定」只能来自精确枚举：抽样时所有样本恰好同值 ≠ 该值必然成立
+      if (r.approx) continue;
+      if (lTot - lT < 1e-9) sol.certain[cell] = 1;
+      else if (lTot - lB < 1e-9) sol.certain[cell] = 2;
+      else if (lTot - lE < 1e-9) sol.certain[cell] = 3;
+    }
+  }
+
+  /* 自由格：彼此对称，概率 = 期望值 / 自由格数 */
+  if (Ffree > 0) {
+    const terms = [];
+    let lwTot = -Infinity;
+    for (const [key, la] of A) {
+      const t = (key / 1000) | 0, b = key % 1000;
+      const rt = Tg - t, rb = Bg - b;
+      if (rt < 0 || rb < 0) continue;
+      const lf = logWaysFree(rt, rb);
+      if (lf === -Infinity) continue;
+      const l = la + lf;
+      terms.push([rt, rb, l]);
+      lwTot = logAdd(lwTot, l);
+    }
+    let eT = 0, eB = 0;
+    for (const [rt, rb, l] of terms) {
+      const p = Math.exp(l - lwTot);
+      eT += p * rt;
+      eB += p * rb;
+    }
+    const pT = eT / Ffree, pB = eB / Ffree;
+    const pE = Math.max(0, 1 - pT - pB);
+    // 自由格的概率由「各分量的精确分布 + 组合数」推出；只要有任何分量是近似的，
+    // 这里就不是精确值，也就不能据此宣称「确定」，同时要防它算出 0。
+    const exactAll = !sol.approx && degraded.length === 0;
+    let fpT = pT, fpB = pB, fpE = pE;
+    if (!exactAll) {
+      const g = minGot === Infinity ? Ffree : minGot;
+      const eps = floorEps(g);
+      fpT = Math.max(fpT, eps); fpB = Math.max(fpB, eps); fpE = Math.max(fpE, eps);
+      const z = fpT + fpB + fpE; fpT /= z; fpB /= z; fpE /= z;
+    }
+    for (const i of unk) {
+      if (inCon[i]) continue;
+      sol.probs[i * 3] = fpT; sol.probs[i * 3 + 1] = fpB; sol.probs[i * 3 + 2] = fpE;
+      if (!exactAll) { sol.estimated[i] = 1; continue; }
+      if (pT > 1 - 1e-9) sol.certain[i] = 1;
+      else if (pB > 1 - 1e-9) sol.certain[i] = 2;
+      else if (pE > 1 - 1e-9) sol.certain[i] = 3;
+    }
+  }
+
+  /* 无法分析的分量：用剩余区域的平均密度兜底，并标记为估算值 */
+  if (degraded.length > 0) {
+    sol.approx = true;
+    // 已「用掉」的宝藏/炸弹：精确分量的确定值 + 其未确定格子的期望值 + 降级分量的确定值
+    let usedT = 0, usedB = 0;
+    for (const r of comps) {
+      for (const v of r.fixed.values()) { if (v === 1) usedT++; else if (v === 2) usedB++; }
+      for (const cell of r.undet) { usedT += sol.probs[cell * 3]; usedB += sol.probs[cell * 3 + 1]; }
+    }
+    for (const r of degraded) {
+      for (const v of r.fixed.values()) { if (v === 1) usedT++; else if (v === 2) usedB++; }
+    }
+    const restN = Ffree;   // 自由格 + 降级分量中未确定的格子
+    let pT = restN > 0 ? Math.max(0, T - usedT) / restN : 0;
+    let pB = restN > 0 ? Math.max(0, B - usedB) / restN : 0;
+    let pE = Math.max(0, 1 - pT - pB);
+    // 密度估算同样可能算出 0（例如配额已被前面的分量「用尽」），
+    // 但那只是估算值，不能当成「不可能」。下限取 1/(2·restN)。
+    if (restN > 0) {
+      const eps = floorEps(restN);
+      pT = Math.max(pT, eps); pB = Math.max(pB, eps); pE = Math.max(pE, eps);
+      const z = pT + pB + pE; pT /= z; pB /= z; pE /= z;
+    }
+    for (const r of degraded) {
+      for (const cell of r.undet) {
+        sol.probs[cell * 3] = pT; sol.probs[cell * 3 + 1] = pB; sol.probs[cell * 3 + 2] = pE;
+        sol.estimated[cell] = 1;
+      }
+    }
+    sol.degradedCount = degN;
+  }
+
+  sol.ms = performance.now() - t0;
+}
+
+/* ---- 「点开会连锁」的概率 ----
+   引擎的三态模型是 宝藏 / 炸弹 / **非道具**。但"非道具"里混着两种东西：
+     · 空地：周围 8 格没有任何道具 → 点开会**连锁翻开一大片**（边界数字格一起露出来）
+     · 数字格：周围有道具 → 点了**只翻开这一格**
+   两者对步数的影响差着量级，可三态模型分不出来（这就是"P空 高"其实没用：
+   这张 18×18 盘上 260 个非道具格里只有 53 个是空地，81% 是数字格）。
+
+   要单独算「点开会连锁」，判据是**这格和它周围 8 格都不是道具** ——
+   因为只有 0 个相邻道具的格子才会触发连锁。
+   已挖开的格是确定的：数字格/空白格 = 非道具（因子 1），
+   已标注的宝藏/炸弹 = 道具（因子 0，直接归零）。
+   剩下的用逐格边缘概率连乘近似（假设独立；排序够用，不当精确概率用）。
+
+   **邻域全是已翻开格时必须归零。** 已翻开的格因子是 1（不拉低乘积），
+   于是"周围一圈都已经翻开、只剩它自己"的格子会算出 pc ≈ 1，被打成最高分 ——
+   可点它连锁进的是**已经翻开的地盘**，一个新格子都翻不出来，白费一步。
+   （实测：125 步里 74 步被标成 cascade，真正连锁的只有 8 步。）
+   所以要求**至少有一个未挖开的邻格**，否则连锁没有新增收益。
+
+   还必须**在包装层调用，不能塞在 computeSolutionCore 末尾** ——
+   那个函数有两个成功出口（正常路径 + 降级兜底路径，后者在 logZ === -Infinity 时提前 return），
+   塞在末尾会让降级路径上 pCascade 是 undefined，表现是"推荐突然变回旧行为"。
+   （上一版就踩了这个，靠"两个出口"那条教训改过来的。） */
+function computeCascade() {
+  const pc = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    if (cellState[i] !== UNKNOWN) continue;
+    let v = sol.probs[i * 3 + 2];
+    let nUnk = 0;
+    for (const j of neighbors[i]) {
+      const sj = cellState[j];
+      if (sj === KT || sj === KB) { v = 0; break; }      // 邻格是道具 → 一定不连锁
+      if (sj !== UNKNOWN) continue;                       // 已挖开的数字/空白 = 非道具，因子 1
+      nUnk++;
+      v *= sol.probs[j * 3 + 2];
+    }
+    pc[i] = nUnk > 0 ? v : 0;      // 邻域全是已知格 → 点了也翻不出新东西
+  }
+  sol.pCascade = pc;
+}
+
+/* ==================== 下一步推荐 ==================== */
+/* 目标：**找到全部宝藏，步数越少越好**。两条游戏机制决定了规则：
+     ① 点到炸弹**直接结束本局** —— 所以只要还有零风险格，就绝不能推风险格。
+        这不是"风险偏好"问题，生存压倒一切。
+     ② 点开空格会**连锁翻开一大片** —— 所以"点开会连锁"是实实在在的收益
+        （一步换一大片线索），必须当成一等项，不能只当并列时的次要条件。
+        **但注意用的是 `P连锁`，不是 `P空`** —— 见 computeCascade 上面那段。
+
+   为什么"步数"会被浪费掉 —— 把每一步的三种结局摊开看：
+
+     结局           这一步算不算浪费   带回什么
+     挖到宝藏       不浪费（宝藏本来  什么信息都没有 —— 兔子只占掉一个配额，
+                    就必须点）        不给邻域提示
+     点开空地       浪费一步          **连锁翻一大片** → 一大堆数字格 → 大量线索
+     点到数字格     浪费一步          只有一个提示
+
+   总步数 = 宝藏数（每个宝藏都得自己点） + 浪费掉的步数。
+   宝藏数是死的，所以真正要压的是**浪费步数**：让每一次"浪费"尽可能换回最多的信息。
+   空地换回一大片，数字格只换回一个 —— 两者差着量级。
+
+   **关键：不能拿 P空 当"点开会连锁"用。** 引擎的三态里"空"= 非道具，
+   而这张 18×18 盘上 260 个非道具格里只有 53 个是真空地，另外 207 个是数字格。
+   拿 P空 加权等于在奖励"点到数字格"，方向正好反了（实测：步数从 152 涨到 178）。
+   所以求解器额外算了一个 `pCascade` = **这格和它 8 邻域都不是道具**的概率，
+   那才是"点开会连锁"的概率。见 computeSolutionCore 末尾。
+
+   排序规则（两层）：
+     1) 零风险格（P弹 == 0）里挑 **score = P宝 + W_CASCADE × P连锁** 最高的。
+        · P宝 高 = 这一步很可能直接拿到宝藏，等于没浪费。
+        · P连锁 高 = 这一步很可能点开一片空地，一次连锁换回一大片信息。
+        · 两者都是好结果；坏结果只有"点到一个普通数字格"。
+        · P宝 = 1 时 score 必然最高，不用单独写分支。
+        · W_CASCADE = 0 就退化成只看 P宝（旧行为）。
+     2) 一个零风险格都没有 → 必须冒险。挑 **P弹 最小**的（生存优先），
+        P弹 相同（±0.5pp）时再挑 score 最大的。
+
+   为什么不按"期望收益"综合打分（比如 pt − λ·pb）：炸弹是**直接结束**，
+   不是扣分。任何把 P弹 折成有限代价的加权，都是在给"赌一把"开绿灯，方向就错了。
+   W_CASCADE 只作用在**零风险格内部**，不碰风险格，两者不是一回事。
+*/
+/* W_CASCADE 的取值是**在真值盘面上量出来的**，不是拍的：
+   拿用户的通关截图还原出 18×18 真值（38 宝 / 26 炸 / 53 空地 / 207 数字格，
+   207 个提示零矛盾），用 叠加器/模拟对局.js 把整局跑一遍数步数：
+     W=0（只看 P宝，旧行为）152 步 → W∈[0.05, 0.5] 稳定 125 步（-18%）。
+   平台很宽（0.05~0.5 全是 125），所以取中间值 0.3，对并列抖动不敏感。
+   作弊上界（用真值排序、宝藏优先）是 123 步 —— 离 125 只差 2 步，
+   说明**瓶颈已经不在排序上**了，继续加启发式收益极小。
+   随机盘面的稳健性另见 叠加器/调权重.js（多档密度 × 多块盘面）。 */
+let PICK_W_CASCADE = 0.3;
+function pickScore(pt, pc) { return pt + PICK_W_CASCADE * pc; }
+
+/* 死区过滤开关（默认开）。关掉**只为 A/B** —— 用来量"不过滤死区"要多花多少步，
+   也给以后改这条规则的人留个对照。生产路径永远是 true。 */
+let PICK_SKIP_DEAD = true;
+
+/* ---- 「死区」：不可能再有宝藏的那一整片未知区域 ----
+   未知格按 8 连通分组。约束是**局部**的（一个已翻开格只约束它周围 8 格），
+   所以信息不会跨组流动 —— 某组里 P宝 全为 0，这组就再也翻不出宝藏。
+
+   为什么必须排除掉：
+     · **只要宝藏还没找齐，活区必然存在**：ΣP宝 = 剩余宝藏数 > 0，
+       所以至少有一格的 P宝 > 0。也就是说死区**永远不该点**，这不是启发式。
+       用户报的现象就是这个："一小片区域显然不会再有宝箱，算法还是推荐挖它"。
+     · 白花的步是实测出来的：三块真值盘面上分别是 12 步 / 0 步 / 8 步
+       （占探路的 10~14%）；80 块冻结盘面配对比，甲组 -7.1 步、乙组 -7.8 步
+       （-5.8% / -6.3%，39:2 和 47:0 的胜负比），踩雷数一格没变。
+       见 叠加器/诊断.js 的【死区】段、叠加器/配对.py。
+
+   为什么之前会点进去：死区是大连通块，里面的格"未挖开邻格数"多，
+   而平局次序（下面那个 nu）正是优先 nu 大的格 —— 上一轮加的次序把这个毛病放大了。
+
+   只在解算**精确**时启用：近似/降级路径下 P宝 可能被算成 0 而其实是宝藏，
+   那时把"全 0"当真会误杀。诊断脚本必须用同一个门槛，否则会把这种步记成
+   "引擎点了死区"（第三张第 56 步踩过）。 */
+function deadComponents() {
+  const comp = new Int32Array(N).fill(-1);
+  const dead = [];
+  for (let i = 0; i < N; i++) {
+    if (cellState[i] !== UNKNOWN || comp[i] >= 0) continue;
+    const id = dead.length;
+    let mx = 0;
+    const q = [i]; comp[i] = id;
+    while (q.length) {
+      const t = q.pop();
+      if (sol.probs[t * 3] > mx) mx = sol.probs[t * 3];
+      for (const j of neighbors[t]) {
+        if (cellState[j] === UNKNOWN && comp[j] < 0) { comp[j] = id; q.push(j); }
+      }
+    }
+    dead.push(mx <= 1e-9);
+  }
+  return { comp, dead };
+}
+
+function pickNext() {
+  if (!sol || !sol.ok) return null;
+  const pcs = sol.pCascade || null;
+  /* 死区过滤的启用条件：
+       ① 开关开着；
+       ② 解算**精确**（近似/降级路径下 P宝 可能被算成 0 而其实是宝藏，那时把"全 0"
+          当真会误杀）；
+       ③ **宝藏还没找齐**（Trest ≥ 1）。
+     第 ③ 条是后加的（2026-09-25）：Trest === 0 时每一组的 P宝 都是 0，所有未知格都会被
+     判成死区，于是 liveSafe 被剔空、退回原池，而 deadSkipped 照样累加，
+     推荐理由就自相矛盾了 —— "推荐点这格" + "已跳过 N 个在'不可能再有宝藏'区域里的格"，
+     而且 N 正好等于候选总数（实测 2x2 是 2/2、3x3 是 6/6）。
+     "活区必然存在"这条论证本来就以 Trest ≥ 1 为前提（ΣP宝 = 剩余宝藏数 > 0），
+     Trest === 0 时它不成立，过滤也就没有意义了 —— 此时所有格子的收益都是 0，
+     只能退回原池照常给推荐。 */
+  const deadInfo = (PICK_SKIP_DEAD && sol.Trest > 0 && !(sol.approx || sol.degradedCount))
+    ? deadComponents() : null;
+  const safe = [], risky = [];
+  for (let i = 0; i < N; i++) {
+    if (cellState[i] !== UNKNOWN) continue;
+    const pt = sol.probs[i * 3], pb = sol.probs[i * 3 + 1], pe = sol.probs[i * 3 + 2];
+    if (sol.certain[i] === 2) continue;            // 已证明是炸弹，永远不推
+    const pc = pcs ? pcs[i] : 0;                   // 点开会连锁的概率
+    let nu = 0;                                    // 未挖开的邻格数（平局时用）
+    for (const j of neighbors[i]) if (cellState[j] === UNKNOWN) nu++;
+    const dead = !!(deadInfo && deadInfo.dead[deadInfo.comp[i]]);
+    (pb <= 1e-9 ? safe : risky).push({ i, pt, pb, pe, pc, nu, dead, est: !!sol.estimated[i] });
+  }
+  /* 两个池子都先剔掉死区格；万一剔光了（降级路径 / 宝藏已找齐）退回原池，
+     不能给不出推荐。 */
+  const liveSafe = safe.filter(c => !c.dead);
+  const liveRisky = risky.filter(c => !c.dead);
+  const pool = liveSafe.length ? liveSafe : safe;
+  /* 有风险的池子也要剔死区，而且理由更强：死区里 P宝=0，赌赢了也拿不到任何东西、
+     也推不出任何关于活区的信息（约束是局部的，死区那一片的约束已经全部确定），
+     所以那是一次**纯亏的赌博** —— 只增加送命机会，不换来任何东西。
+     唯一看着像理由的情形（"死区那格 P弹 更低、活下来再说"）也不成立：
+     活下来之后局面没有任何改善，还是得在活区赌，只是多冒了一次险。
+     而且 Trest ≥ 1（宝藏没找齐）时活区必然存在，永远不会落到"只能点死区"。 */
+  const riskyPool = liveRisky.length ? liveRisky : risky;
+  /* 只有**真的用了过滤后的池子**才算"跳过"。某个池子被剔空而退回原池时，
+     那里的格子并没有被跳过 —— 把它们算进 deadSkipped 就会出现
+     "推荐这格 + 已跳过这格"的自相矛盾（宝藏找齐那一步实测踩到过）。 */
+  const deadSkipped = (liveSafe.length ? safe.length - liveSafe.length : 0)
+                    + (liveRisky.length ? risky.length - liveRisky.length : 0);
+  /* 零风险：按 score 降序。同分时先看 P宝，再看**未挖开邻格数**（多的优先）。
+     平局时数组下标顺序（左上优先）是纯任意的，而平局里翻出的是哪一格数字，
+     会决定后面能不能早点推出宝藏 —— 这个次序不是"无所谓"的。
+     实测（叠加器/基准18.js，两组各 80 块冻结盘面，18×18/38宝/26弹，从零开局）：
+       W=0.3 平均步数  甲组 146.72 → 123.13（-16.1%），乙组 145.98 → 123.90（-15.1%）
+       两张真值盘面：第一张 125 → 124，第二张 136 → 101
+     踩雷数没有变差；求解耗时平均 1.3ms、最慢 7.8ms（真值盘面），叠加器刷新不会卡。
+     注意 nu **只能当平局次序**，不能给权重：infoGain 策略（纯按 nu 排）要 161/172 步，很差。 */
+  pool.sort((a, b) => (pickScore(b.pt, b.pc) - pickScore(a.pt, a.pc))
+    || (b.pt - a.pt) || (b.nu - a.nu));
+  // 有风险：P弹 升序（生存优先），相近时 score 降序
+  riskyPool.sort((a, b) => (a.pb - b.pb) || (pickScore(b.pt, b.pc) - pickScore(a.pt, a.pc)));
+
+  let p = pool[0];
+  if (p) {
+    /* 四种"零风险"的情形分开报，别混成一句话：
+         certainT —— 求解器证明是宝藏
+         safeT    —— 可能出宝藏（P宝 > 0 且不低于 P连锁）
+         cascade  —— P连锁 更大，图的是翻一片
+         probe    —— P宝 = P连锁 = 0：**既不出宝藏也不连锁**，纯粹为了多一条线索。
+                    这一种在残局很常见（活区里剩下的全是"已证明非道具"的格），
+                    以前归到 safeT 里，面板上会显示"零风险，0.0% 是宝藏"，
+                    看着像在推荐一步毫无意义的棋 —— 其实它是有用的（见下面 reason）。 */
+    p.kind = (p.pt > 1 - 1e-9) ? 'certainT'
+      : (p.pt > 0 && p.pt >= p.pc) ? 'safeT'
+        : (p.pc > 0) ? 'cascade' : 'probe';
+  } else {
+    p = riskyPool[0];
+    if (p) p.kind = 'risky';
+  }
+  if (!p) return null;
+
+  const pct = v => (v * 100).toFixed(1) + '%';
+  let reason;
+  if (p.kind === 'certainT') {
+    reason = '确定是宝藏，直接挖';
+  } else if (p.kind === 'cascade') {
+    reason = '零风险（不可能是炸弹），' + pct(p.pc) + ' 会连锁翻开一片空地'
+           + ' —— 一步换一大片线索（' + pct(p.pt) + ' 是宝藏）';
+  } else if (p.kind === 'safeT') {
+    reason = '零风险（不可能是炸弹），' + pct(p.pt) + ' 是宝藏';
+    if (p.pc >= 0.05) reason += '，还有 ' + pct(p.pc) + ' 会连锁翻一片';
+  } else if (p.kind === 'probe') {
+    reason = '零风险，但这格既不出宝藏也不连锁 —— 它是"已证明非道具"里的一条线索：'
+           + '点开它能看到数字，给旁边的未知格补上约束（没有更好的棋时才走这种）';
+  } else {
+    reason = '没有零风险格了，这格炸弹概率最低（' + pct(p.pb) + '），但点到炸弹会直接结束';
+  }
+  if (p.est) reason += '（估算值，非精确概率）';
+  if (deadSkipped > 0) {
+    reason += '（已跳过 ' + deadSkipped + ' 个在"不可能再有宝藏"区域里的格）';
+  }
+  if (sol.fallback) reason = '约束过复杂，只能按平均密度估，参考价值有限：' + reason;
+
+  return {
+    i: p.i, gx: p.i % W, gy: (p.i / W) | 0, kind: p.kind,
+    pt: p.pt, pb: p.pb, pe: p.pe, pc: p.pc,
+    estimated: p.est,
+    safeLeft: safe.length, riskyLeft: risky.length,
+    deadSkipped,
+    reason,
+  };
+}
+
+/* 两个成功出口（正常路径 + 降级兜底路径）都要带上推荐与连锁概率。包一层，
+   免得以后再加出口时漏掉 —— 漏掉的表现是"推荐凭空消失"或"悄悄退回旧行为"，很难查。 */
+function computeSolution() {
+  computeSolutionCore();
+  if (sol.ok) computeCascade();
+  sol.next = pickNext();
+}
+/*==ENGINE:END==*/
+
+/* 着色函数：与模拟器的渲染逻辑一致（纯函数，非引擎部分） */
+function unkColor(pt, pb) {
+  const base = [253, 230, 138], green = [110, 231, 183], red = [252, 165, 165];
+  const m = Math.max(-1, Math.min(1, pt - pb));
+  const w = Math.abs(m) * 0.9;
+  const tgt = m > 0 ? green : red;
+  const r = Math.round(base[0] + (tgt[0] - base[0]) * w);
+  const g = Math.round(base[1] + (tgt[1] - base[1]) * w);
+  const b = Math.round(base[2] + (tgt[2] - base[2]) * w);
+  return `rgb(${r},${g},${b})`;
+}
+</script>
+
+<script>
+"use strict";
+/* ==================== 生成器 ==================== */
+const $ = s => document.querySelector(s);
+
+let truth = null;        // 0=空地 1=宝藏 2=炸弹（上帝视角）
+let revealed = null;     // 是否已被玩家挖开
+let curParams = null;
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
+/* 某格周围 8 格中宝藏数 t 与炸弹数 b */
+function hintAt(i) {
+  let t = 0, b = 0;
+  for (const j of neighbors[i]) { if (truth[j] === 1) t++; else if (truth[j] === 2) b++; }
+  return { t, b };
+}
+
+/* 按游戏规则把「已挖开」格子转成四种标注之一 */
+function markRevealed() {
+  for (let i = 0; i < N; i++) {
+    if (!revealed[i]) continue;
+    const { t, b } = hintAt(i);
+    if (t > 0 && b > 0) { cellState[i] = YELLOW; cellNum[i] = t + b; }
+    else if (t > 0)     { cellState[i] = BLUE;   cellNum[i] = t; }
+    else if (b > 0)     { cellState[i] = RED;    cellNum[i] = b; }
+    else                { cellState[i] = BLANK;  cellNum[i] = 0; }
+  }
+}
+
+/* 从一点连锁展开（真实扫雷的展开规则：周围无目标才继续扩散） */
+function floodReveal(start) {
+  const stack = [start];
+  while (stack.length) {
+    const i = stack.pop();
+    if (revealed[i] || truth[i] !== 0) continue;
+    revealed[i] = 1;
+    const { t, b } = hintAt(i);
+    if (t === 0 && b === 0) {
+      for (const j of neighbors[i]) if (!revealed[j]) stack.push(j);
+    }
+  }
+}
+
+/* 只生成 + 求解，不渲染（批量验证要反复调用） */
+function buildAndSolve(p) {
+  const sz = clamp(parseInt(p.size, 10) || 10, 3, 25);
+  W = sz; H = sz; N = sz * sz;
+  T = clamp(p.T, 0, N);
+  B = clamp(p.B, 0, N - T);
+
+  cellState = new Int8Array(N);
+  cellNum = new Int8Array(N);
+  buildNeighbors();
+
+  // 1) 随机铺真实地图
+  truth = new Int8Array(N);
+  const idx = shuffle([...Array(N).keys()]);
+  for (let i = 0; i < T; i++) truth[idx[i]] = 1;
+  for (let i = T; i < T + B; i++) truth[idx[i]] = 2;
+
+  // 2) 模拟玩家挖开：多个展开点 + 补充随机挖开
+  revealed = new Uint8Array(N);
+  for (let k = 0; k < p.seeds; k++) {
+    let s = -1;
+    for (let g = 0; g < 300; g++) {
+      const i = (Math.random() * N) | 0;
+      if (truth[i] === 0 && !revealed[i]) { s = i; break; }
+    }
+    if (s >= 0) floodReveal(s);
+  }
+  let done = 0, guard = 0;
+  while (done < p.extra && guard++ < 8000) {
+    const i = (Math.random() * N) | 0;
+    if (truth[i] !== 0 || revealed[i]) continue;
+    revealed[i] = 1; done++;
+  }
+
+  // 3) 按规则标注，交给模拟器引擎
+  markRevealed();
+  computeSolution();
+}
+
+/* ---------- 验证 ---------- */
+function verify() {
+  const r = {
+    unknown: 0, wrong: 0, missed: 0,
+    sumT: 0, sumB: 0,
+    cT: 0, cB: 0, cE: 0, hitT: 0, hitB: 0, hitE: 0,
+    buckets: []
+  };
+  for (let k = 0; k < 5; k++) r.buckets.push({ n: 0, hit: 0, sumP: 0 });
+
+  if (!sol || !sol.ok) { r.error = sol ? sol.error : '未求解'; return r; }
+
+  for (let i = 0; i < N; i++) {
+    if (cellState[i] !== UNKNOWN) continue;
+    r.unknown++;
+    const real = truth[i];                       // 1=宝藏 2=炸弹 0=空地
+    const pT = sol.probs[i * 3], pB = sol.probs[i * 3 + 1], pE = sol.probs[i * 3 + 2];
+    r.sumT += pT; r.sumB += pB;
+
+    // 真实解必须落在解空间内（概率 > 0）
+    if (real === 1 && pT <= 0) r.missed++;
+    if (real === 2 && pB <= 0) r.missed++;
+    if (real === 0 && pE <= 0) r.missed++;
+
+    // 「确定」结论必须与真实一致
+    const c = sol.certain[i];
+    if (c === 1) { r.cT++; if (real === 1) r.hitT++; }
+    if (c === 2) { r.cB++; if (real === 2) r.hitB++; }
+    if (c === 3) { r.cE++; if (real === 0) r.hitE++; }
+    if ((c === 1 && real !== 1) || (c === 2 && real !== 2) || (c === 3 && real !== 0)) r.wrong++;
+
+    // 概率校准：把 (P(宝藏), 是否真宝藏) 与 (P(炸弹), 是否真炸弹) 都投入分桶
+    for (const pair of [[pT, real === 1], [pB, real === 2]]) {
+      const p = pair[0], isHit = pair[1];
+      const bk = Math.min(4, Math.max(0, Math.floor(p * 5)));
+      r.buckets[bk].n++;
+      r.buckets[bk].sumP += p;
+      if (isHit) r.buckets[bk].hit++;
+    }
+  }
+  return r;
+}
+
+/* ---------- 渲染 ---------- */
+function cellEl() {
+  const d = document.createElement('div');
+  d.className = 'cell';
+  return d;
+}
+
+function renderTruth() {
+  const el = $('#boardTruth');
+  el.style.gridTemplateColumns = `repeat(${W}, var(--cs))`;
+  el.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < N; i++) {
+    const d = cellEl();
+    if (revealed[i]) {
+      const st = cellState[i];
+      if (st === BLANK) { d.classList.add('opened', 'blank'); }
+      else {
+        d.classList.add('opened');
+        d.classList.add(st === BLUE ? 'num-blue' : st === YELLOW ? 'num-yellow' : 'num-red');
+        d.textContent = String(cellNum[i]);
+      }
+    } else if (truth[i] === 1) { d.classList.add('truth-t'); d.textContent = '宝'; }
+    else if (truth[i] === 2)   { d.classList.add('truth-b'); d.textContent = '弹'; }
+    else                       { d.classList.add('truth-e'); }
+    frag.appendChild(d);
+  }
+  el.appendChild(frag);
+}
+
+function renderAnalysis() {
+  const el = $('#boardAnalysis');
+  el.style.gridTemplateColumns = `repeat(${W}, var(--cs))`;
+  el.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < N; i++) {
+    const d = cellEl();
+    if (cellState[i] !== UNKNOWN) {
+      const st = cellState[i];
+      if (st === BLANK) { d.classList.add('opened', 'blank'); }
+      else {
+        d.classList.add('opened');
+        d.classList.add(st === BLUE ? 'num-blue' : st === YELLOW ? 'num-yellow' : 'num-red');
+        d.textContent = String(cellNum[i]);
+      }
+    } else if (sol && sol.ok) {
+      const c = sol.certain[i];
+      if (c === 1)      { d.classList.add('unk', 'safe');  d.textContent = '宝'; }
+      else if (c === 2) { d.classList.add('unk', 'mine');  d.textContent = '弹'; }
+      else if (c === 3) { d.classList.add('unk', 'empty'); d.textContent = '·'; }
+      else {
+        const pT = sol.probs[i * 3], pB = sol.probs[i * 3 + 1], pE = sol.probs[i * 3 + 2];
+        d.classList.add('unk');
+        d.style.background = unkColor(pT, pB);
+        // 不是「确定」就不显示 0 或 100——近似模式下 P=0.999 并不等于必然，
+        // 显示成 100 会让人误以为引擎给了确定结论。
+        const v = Math.round(Math.max(pT, pB, pE) * 100);
+        d.textContent = String(Math.min(99, Math.max(1, v)));
+      }
+      const real = truth[i];
+      if ((c === 1 && real !== 1) || (c === 2 && real !== 2) || (c === 3 && real !== 0)) {
+        d.classList.add('wrong');
+      }
+    } else {
+      d.classList.add('unk');
+    }
+    frag.appendChild(d);
+  }
+  el.appendChild(frag);
+}
+
+/* ---------- 结论面板 ---------- */
+function pct(x) { return (x * 100).toFixed(1) + '%'; }
+
+function verdictHTML(r, solObj) {
+  if (r.error) return `<div class="err">求解失败：${r.error}</div>`;
+  const lines = [];
+
+  // 1) 误判
+  if (r.wrong === 0) {
+    lines.push(`<div><span class="ok">✓ 零误判</span>：模拟器判定「确定」的 `
+      + `<span class="v">${r.cT + r.cB + r.cE}</span> 个格子（宝 ${r.cT} / 弹 ${r.cB} / 空 ${r.cE}），`
+      + `与真实地图<b>全部一致</b>。</div>`);
+  } else {
+    lines.push(`<div><span class="bad">✗ 出现 ${r.wrong} 处误判</span>（紫色描边格）——引擎有 bug。</div>`);
+  }
+
+  // 2) 真实解在解空间内
+  if (r.missed === 0) {
+    lines.push(`<div><span class="ok">✓ 解空间完整</span>：真实地图是 `
+      + `<span class="v">${r.unknown}</span> 个未知格的合法配置之一，未被误排除。</div>`);
+  } else {
+    lines.push(`<div><span class="bad">✗ 有 ${r.missed} 个格子的真实取值被排除在解空间外</span>——引擎有 bug。</div>`);
+  }
+
+  // 3) 不变量
+  const dT = r.sumT - T, dB = r.sumB - B;
+  const tolT = Math.max(0.05, T * 0.02);
+  const okInv = Math.abs(dT) < tolT && Math.abs(dB) < tolT;
+  lines.push(`<div>${okInv ? '<span class="ok">✓</span>' : '<span class="bad">✗</span>'} `
+    + `<span class="k">ΣP(宝藏) =</span> <span class="v">${r.sumT.toFixed(3)}</span>（应 ${T}）`
+    + ` · <span class="k">ΣP(炸弹) =</span> <span class="v">${r.sumB.toFixed(3)}</span>（应 ${B}）</div>`);
+
+  // 4) 配置总数
+  lines.push(`<div><span class="k">自洽配置总数：</span><span class="v">${fmtLog(solObj.logTotal)}</span>`
+    + `${solObj.approx ? ' <span class="k">（含抽样近似）</span>' : ' <span class="k">（精确）</span>'}</div>`);
+
+  // 5) 校准表
+  lines.push(`<table class="cal"><tr><th>预测概率</th><th>样本</th><th>预测均值</th><th>实际命中</th></tr>`);
+  for (let k = 0; k < 5; k++) {
+    const b = r.buckets[k];
+    if (!b.n) continue;
+    const avgP = b.sumP / b.n, act = b.hit / b.n;
+    const dev = Math.abs(avgP - act);
+    const cls = dev < 0.10 ? 'ok' : dev < 0.20 ? '' : 'bad';
+    lines.push(`<tr><td>${k * 20}–${k * 20 + 20}%</td><td>${b.n}</td>`
+      + `<td>${pct(avgP)}</td><td class="${cls}">${pct(act)}</td></tr>`);
+  }
+  lines.push(`</table>`);
+  lines.push(`<div class="box">校准表说明：把每个未知格的「宝藏概率」与「炸弹概率」都投入分桶，`
+    + `若预测均值与实际命中率接近，说明概率是可信的。样本少时抖动属正常。</div>`);
+
+  return lines.join('');
+}
+
+function refresh(params) {
+  buildAndSolve(params);
+  fitCellSize(W);
+  renderTruth();
+  renderAnalysis();
+  const r = verify();
+
+  $('#tagA').textContent = `棋盘 ${W} × ${H}（${N} 格）`;
+  let opened = 0;
+  for (let i = 0; i < N; i++) if (revealed[i]) opened++;
+  $('#tagB').textContent = `真实：宝藏 ${T} · 炸弹 ${B} · 已挖开 ${opened}`;
+  const c = $('#tagC');
+  if (sol && sol.ok) {
+    c.textContent = r.wrong === 0 ? `验证通过 · 零误判` : `发现 ${r.wrong} 处误判`;
+    c.className = 'tag acc';
+  } else {
+    c.textContent = '求解失败';
+    c.className = 'tag';
+  }
+  $('#verdict').innerHTML = verdictHTML(r, sol);
+  return r;
+}
+
+function readParams() {
+  const sz = clamp(parseInt($('#gSize').value, 10) || 10, 3, 25);
+  const N0 = sz * sz;
+  const T0 = clamp(parseInt($('#gT').value, 10) || 0, 0, N0);
+  const B0 = clamp(parseInt($('#gB').value, 10) || 0, 0, N0 - T0);
+  $('#gSize').value = sz; $('#gT').value = T0; $('#gB').value = B0;
+  return {
+    size: sz, T: T0, B: B0,
+    seeds: clamp(parseInt($('#gSeed').value, 10) || 1, 1, 60),
+    extra: clamp(parseInt($('#gExtra').value, 10) || 0, 0, N0)
+  };
+}
+
+/* 按棋盘大小自动缩放格子，保证两块棋盘并排放得下 */
+function fitCellSize(sz) {
+  const host = $('.boards');
+  const avail = (host ? host.clientWidth : 1100) - 36 - 26;
+  const per = Math.max(240, Math.floor(avail / 2));
+  const cs = Math.max(10, Math.min(34, Math.floor((per - 12) / sz) - 2));
+  const root = document.documentElement;
+  root.style.setProperty('--cs', cs + 'px');
+  root.style.setProperty('--fs', Math.max(8, Math.round(cs * 0.38)) + 'px');
+}
+
+$('#btnGen').addEventListener('click', () => {
+  const btn = $('#btnGen');
+  btn.disabled = true; btn.textContent = '计算中…';
+  // 先让浏览器把「计算中…」画出来，再开始同步计算（求解是同步的，会阻塞渲染）
+  setTimeout(() => {
+    try {
+      curParams = readParams();
+      refresh(curParams);
+    } finally {
+      btn.disabled = false; btn.textContent = '生成地图并验证';
+    }
+  }, 30);
+});
+
+/* ---------- 批量验证 ---------- */
+$('#btnBatch').addEventListener('click', () => {
+  const p = readParams();
+  // 大棋盘单局求解可能要几秒：按尺寸缩放局数，并加一个总时间盒，避免页面假死太久
+  const TIME_BUDGET = 25000;
+  const N_ROUNDS = p.size <= 10 ? 200 : p.size <= 14 ? 80 : p.size <= 19 ? 30 : 15;
+  const t0 = performance.now();
+  const agg = { rounds: 0, failed: 0, approx: 0, fallback: 0, wrong: 0, missed: 0,
+                maxDevT: 0, maxDevB: 0, maxDevTa: 0, maxDevBa: 0, cells: 0,
+                buckets: [], timedOut: false };
+  for (let k = 0; k < 5; k++) agg.buckets.push({ n: 0, hit: 0, sumP: 0 });
+
+  const btn = $('#btnBatch');
+  btn.disabled = true;
+  $('#batchOut').innerHTML = `<div class="box">计算中…（最多 ${(TIME_BUDGET / 1000).toFixed(0)} 秒）</div>`;
+
+  setTimeout(() => {
+    try {
+      for (let k = 0; k < N_ROUNDS; k++) {
+        if (performance.now() - t0 > TIME_BUDGET) { agg.timedOut = true; break; }
+        buildAndSolve(p);
+        if (!sol || !sol.ok) { agg.failed++; continue; }
+        const ap = sol.approx;
+        agg.rounds++;
+        if (ap) agg.approx++;
+        if (sol.fallback) agg.fallback++;
+        const r = verify();
+        agg.wrong += r.wrong;
+        agg.missed += r.missed;
+        agg.cells += r.unknown;
+        const dT = Math.abs(r.sumT - T), dB = Math.abs(r.sumB - B);
+        if (ap) { agg.maxDevTa = Math.max(agg.maxDevTa, dT); agg.maxDevBa = Math.max(agg.maxDevBa, dB); }
+        else { agg.maxDevT = Math.max(agg.maxDevT, dT); agg.maxDevB = Math.max(agg.maxDevB, dB); }
+        for (let b = 0; b < 5; b++) {
+          agg.buckets[b].n += r.buckets[b].n;
+          agg.buckets[b].hit += r.buckets[b].hit;
+          agg.buckets[b].sumP += r.buckets[b].sumP;
+        }
+      }
+
+      const secs = ((performance.now() - t0) / 1000).toFixed(1);
+      const out = [];
+      out.push(`<div class="box"><b>${agg.rounds}</b> 局成功求解`
+        + `${agg.timedOut ? `（时间盒内跑了 ${agg.rounds + agg.failed} 局后收工）` : `（共 ${N_ROUNDS} 局）`}`
+        + `${agg.failed ? `，另有 <b>${agg.failed}</b> 局求解失败` : ''}，`
+        + `累计检验 <b>${agg.cells}</b> 个未知格，耗时 ${secs}s。</div>`);
+      out.push(`<div class="${agg.wrong === 0 ? 'box' : 'err'}">`
+        + (agg.wrong === 0
+            ? `<span class="ok">✓ 累计误判 0 次</span>：所有「确定」结论与真实地图完全一致。`
+            : `<span class="bad">✗ 累计误判 ${agg.wrong} 次</span>——引擎有 bug。`)
+        + `</div>`);
+      out.push(`<div class="${agg.missed === 0 ? 'box' : 'err'}">`
+        + (agg.missed === 0
+            ? `<span class="ok">✓ 解空间从未误排除真实解</span>。`
+            : `<span class="bad">✗ ${agg.missed} 次把真实取值排除在解空间外</span>。`)
+        + `</div>`);
+      out.push(`<div class="box">ΣP 最大偏差：精确局 宝 ${agg.maxDevT.toExponential(1)} / 弹 ${agg.maxDevB.toExponential(1)}`
+        + ` · 近似局 宝 ${agg.maxDevTa.toFixed(3)} / 弹 ${agg.maxDevBa.toFixed(3)}`
+        + `<br>精确局应严格守恒；近似局的小幅偏差来自抽样分辨率，属预期。</div>`);
+      if (agg.approx || agg.fallback) {
+        out.push(`<div class="box">其中 ${agg.approx} 局走了抽样近似`
+          + `${agg.fallback ? `、${agg.fallback} 局退回密度估算` : ''}`
+          + `——这些局的概率不是精确值，因此引擎不会给出「确定」结论。</div>`);
+      }
+
+      out.push(`<table class="cal"><tr><th>预测概率</th><th>样本</th><th>预测均值</th><th>实际命中</th></tr>`);
+      for (let k = 0; k < 5; k++) {
+        const b = agg.buckets[k];
+        if (!b.n) continue;
+        const avgP = b.sumP / b.n, act = b.hit / b.n, dev = Math.abs(avgP - act);
+        const cls = dev < 0.05 ? 'ok' : dev < 0.12 ? '' : 'bad';
+        out.push(`<tr><td>${k * 20}–${k * 20 + 20}%</td><td>${b.n}</td>`
+          + `<td>${pct(avgP)}</td><td class="${cls}">${pct(act)}</td></tr>`);
+      }
+      out.push(`</table>`);
+      $('#batchOut').innerHTML = out.join('');
+    } finally {
+      btn.disabled = false;
+    }
+  }, 30);
+});
+
+/* ---------- 启动 ---------- */
+curParams = readParams();
+refresh(curParams);
+</script>
+</body>
+</html>

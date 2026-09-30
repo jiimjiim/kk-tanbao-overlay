@@ -1,0 +1,47 @@
+# PyInstaller 版本资源（构建.py 的 --version-file 用）。
+#
+# 【格式硬约束】这个文件会被 PyInstaller 用 eval() 读，所以**整个文件必须是
+# 一个单独的表达式**。注释可以（eval 会跳过），但**不能有 docstring**——
+# 字符串字面量后面再跟表达式会直接 SyntaxError，报错长这样：
+#   ValueError: Failed to deserialize VSVersionInfo from text-based representation!
+# （踩过：第一版写了段 docstring 说明，构建直接失败。）
+#
+# 【为什么必须有版本资源】没有它，exe 属性页里"公司/产品/文件说明/版本"全空，
+# 跟"来路不明的自解压包"长得一样 —— Windows Defender 的 ML 启发式会直接报
+# Trojan:Win32/Bearfoos.A!ml（!ml = 机器学习，不是特征码命中）。本工具被报过。
+# 填上完整自洽的版本信息，是这类误报最标准也最有效的一招。
+#
+# 【内容必须真实】编一个假公司名只会让文件"看起来像伪装的恶意软件"，适得其反。
+#
+# 改完要重新构建才生效：<overlay venv>\python.exe 叠加器exe\构建.py
+VSVersionInfo(
+    ffi=FixedFileInfo(
+        filevers=(1, 0, 1, 0),
+        prodvers=(1, 0, 1, 0),
+        mask=0x3F,
+        flags=0x0,
+        OS=0x40004,        # VOS_NT_WINDOWS32
+        fileType=0x1,      # VFT_APP
+        subtype=0x0,
+        date=(0, 0),
+    ),
+    kids=[
+        StringFileInfo([
+            StringTable(
+                '080404B0',        # 0804 = 简体中文, 04B0 = Unicode
+                [
+                    StringStruct('CompanyName', '个人自用工具'),
+                    StringStruct('FileDescription', '扫雷叠加器 — 识别游戏截图，叠加安全格/危险格与炸弹概率标注'),
+                    StringStruct('FileVersion', '1.0.1.0'),
+                    StringStruct('InternalName', '扫雷叠加器'),
+                    StringStruct('LegalCopyright', '免费自用工具，不提供任何担保'),
+                    StringStruct('OriginalFilename', '扫雷叠加器.exe'),
+                    StringStruct('ProductName', '扫雷叠加器'),
+                    StringStruct('ProductVersion', '1.0.1.0'),
+                    StringStruct('Comments', '本地运行，不联网，不上传任何数据'),
+                ],
+            )
+        ]),
+        VarFileInfo([VarStruct('Translation', [2052, 1200])]),
+    ],
+)

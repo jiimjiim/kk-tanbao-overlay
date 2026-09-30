@@ -1,0 +1,14 @@
+# 本机工作环境
+.workbuddy-ai/
+.zcodeignore
+
+# 运行时自建
+存证/
+__pycache__/
+*.pyc
+
+# 构建产物与依赖（Release 里发布 exe；node.exe 体积太大不入库）
+扫雷叠加器.exe
+叠加器exe/build/
+叠加器exe/dist/
+叠加器exe/node/
