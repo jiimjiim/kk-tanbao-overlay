@@ -42,11 +42,14 @@ KK对战平台本身以管理员权限运行时，Windows 的 UIPI 机制会拦�
 
 ## 使用
 
-1. 右键 `扫雷叠加器.exe` → **以管理员身份运行**（单文件，免安装）。
-2. 打开活动第二关，让棋盘完整出现在屏幕上。
-3. 按 F11 框住棋盘，叠加层立即出现。
-4. 自己看着挖，或按 F9 挂机。
-5. 首次运行若被 Windows Defender / SmartScreen 拦截：点「更多信息」→
+1. 到 [Releases](https://github.com/jiimjiim/kk-tanbao-overlay/releases/latest)
+   下载 `saolei-overlay-v1.0.0.exe`（即「扫雷叠加器.exe」，GitHub 发布接口
+   不支持中文附件名）。
+2. **右键 → 以管理员身份运行**（单文件，免安装）。
+3. 打开活动第二关，让棋盘完整出现在屏幕上。
+4. 按 F11 框住棋盘，叠加层立即出现。
+5. 自己看着挖，或按 F9 挂机。
+6. 首次运行若被 Windows Defender / SmartScreen 拦截：点「更多信息」→
    「仍要运行」。这是未签名 PyInstaller 程序的常见误报（详见
    [使用说明.txt](叠加器exe/使用说明.txt)）。
 
